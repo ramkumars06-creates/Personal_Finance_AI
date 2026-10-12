@@ -1,6 +1,15 @@
 """
 Streamlit Multi-Page Main Application.
-Features top navigation bar with Home & Upload, Overview, and Profile & History tabs.
+Features:
+- Pinned Top-Right Static Profile Menu with:
+  1. History
+  2. Current Budget and Spending
+  3. Files uploaded
+  4. Settings
+  5. Logout
+- Top Navigation Bar (Home & Upload, Overview, Transactions, Alerts, Weekly Advice)
+- Centered Bank Statement Uploader Hero
+- Google Account & Password Authentication
 """
 import streamlit as st
 import pandas as pd
@@ -15,7 +24,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS Tokens & Modern Top Navigation Styling
+# Custom CSS Tokens & Modern Styling
 st.markdown("""
 <style>
     .main {
@@ -24,7 +33,7 @@ st.markdown("""
     }
     .stMetric {
         background: linear-gradient(135deg, #1E2640 0%, #0F172A 100%);
-        padding: 18px;
+        padding: 16px;
         border-radius: 12px;
         border: 1px solid #334155;
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
@@ -68,27 +77,44 @@ st.markdown("""
         background: #182030;
         border: 1px solid #334155;
         border-radius: 14px;
-        padding: 22px;
-        margin-bottom: 18px;
+        padding: 18px;
+        margin-bottom: 14px;
     }
     /* Tab Styling */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 12px;
+        gap: 10px;
         border-bottom: 2px solid #334155;
         padding-bottom: 4px;
     }
     .stTabs [data-baseweb="tab"] {
-        height: 48px;
+        height: 44px;
         white-space: pre-wrap;
         background-color: #1E293B;
         border-radius: 8px 8px 0px 0px;
-        padding: 10px 24px;
-        font-size: 1.05rem;
+        padding: 8px 20px;
+        font-size: 1rem;
         font-weight: 600;
         color: #94A3B8;
     }
     .stTabs [aria-selected="true"] {
         background-color: #2563EB !important;
+        color: #FFFFFF !important;
+    }
+    /* Popover Top-Right Button Styling */
+    div[data-testid="stPopover"] {
+        display: flex;
+        justify-content: flex-end;
+    }
+    div[data-testid="stPopover"] > button {
+        background: #1E293B !important;
+        border: 1px solid #3B82F6 !important;
+        color: #F8FAFC !important;
+        border-radius: 20px !important;
+        font-weight: 600 !important;
+        padding: 6px 18px !important;
+    }
+    div[data-testid="stPopover"] > button:hover {
+        background: #2563EB !important;
         color: #FFFFFF !important;
     }
 </style>
@@ -114,7 +140,7 @@ if st.session_state.token:
 st.sidebar.title("💰 Finance Agent")
 st.sidebar.caption("Agentic AI Budget & Spending Assistant")
 
-# Always show disclaimer
+# Always show disclaimer banner
 st.markdown("""
 <div class="disclaimer-banner">
     ℹ️ <strong>Financial Awareness Disclaimer:</strong> This tool supports financial awareness and planning; it is not a replacement for a financial adviser. No recommendation is executed automatically.
@@ -122,7 +148,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 if not st.session_state.token:
-    # Public Landing Page & Auth Tabs
+    # Public Landing Page & Auth Section
     st.title("Personal Finance Agent: Agentic AI Assistant")
     st.subheader("Observe ➔ Understand ➔ Detect ➔ Recommend ➔ Improve")
 
@@ -150,7 +176,7 @@ if not st.session_state.token:
                     "anomalies": 1,
                     "timestamp": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")
                 })
-                st.success("Demo loaded! Explore Home, Overview, and Profile tabs above.")
+                st.success("Demo loaded! Explore your personal finance assistant.")
                 st.rerun()
             except Exception as e:
                 st.error(f"Error loading demo: {e}")
@@ -245,18 +271,137 @@ if not st.session_state.token:
                     except Exception as e:
                         st.error(f"Signup failed: {e}")
 else:
-    # Authenticated User View
+    # =========================================================================
+    # AUTHENTICATED USER INTERFACE:
+    # HEADER WITH STATIC TOP-RIGHT PROFILE OPTION
+    # =========================================================================
+
+    col_hdr_left, col_hdr_right = st.columns([7, 3])
+
+    with col_hdr_left:
+        st.title("💰 Personal Finance Agent")
+        st.caption("Agentic AI Budget & Spending Assistant")
+
+    with col_hdr_right:
+        st.write("")  # Vertical alignment padding
+        # Top-Right Static Profile Popover
+        display_name = st.session_state.user_email.split('@')[0] if st.session_state.user_email else "User"
+        with st.popover(f"👤 {display_name} ▾", use_container_width=True):
+            st.markdown(f"### 👤 Profile & Account")
+            st.caption(f"Signed in as **{st.session_state.user_email}**")
+            st.markdown("---")
+
+            # 5 Requested Profile Options:
+            profile_tab_choice = st.radio(
+                "Profile Menu",
+                [
+                    "1. 📜 History",
+                    "2. 💰 Current Budget and Spending",
+                    "3. 📁 Files uploaded",
+                    "4. ⚙️ Settings",
+                    "5. 🚪 Logout"
+                ],
+                label_visibility="collapsed"
+            )
+
+            st.markdown("---")
+
+            # 1. History
+            if "1." in profile_tab_choice:
+                st.markdown("#### 📜 User Activity History")
+                try:
+                    activity_logs = api.get_activity_history()
+                    if activity_logs:
+                        act_df = pd.DataFrame(activity_logs)[["timestamp", "action", "resource"]]
+                        st.dataframe(act_df, use_container_width=True)
+                    else:
+                        st.info("No activity records found yet.")
+                except Exception:
+                    st.write(f"- **Current Session:** Active")
+                    st.write(f"- **Identity:** `{st.session_state.user_email}`")
+                    st.write(f"- **Security:** AES-256 field encryption active")
+
+            # 2. Current Budget and Spending
+            elif "2." in profile_tab_choice:
+                st.markdown("#### 💰 Current Budget and Spending")
+                try:
+                    txns = api.get_transactions()
+                    budgets = api.get_budgets()
+                    total_spend = sum(t["amount"] for t in txns if t.get("transaction_type") == "debit")
+                    st.metric("Total Recorded Spend", f"Rs. {total_spend:,.2f}")
+
+                    if budgets:
+                        b_df = pd.DataFrame(budgets)
+                        cols = [c for c in ["category", "weekly_target_amount", "current_week_actual", "is_overbudget"] if c in b_df.columns]
+                        st.dataframe(b_df[cols], use_container_width=True)
+                    else:
+                        st.info("No budget targets configured yet.")
+                except Exception as e:
+                    st.error(f"Error loading budget info: {e}")
+
+            # 3. Files uploaded
+            elif "3." in profile_tab_choice:
+                st.markdown("#### 📁 Files Uploaded")
+                if st.session_state.upload_history:
+                    f_df = pd.DataFrame(st.session_state.upload_history)
+                    st.dataframe(f_df, use_container_width=True)
+                else:
+                    st.info("No statement files uploaded in this session yet.")
+
+            # 4. Settings
+            elif "4." in profile_tab_choice:
+                st.markdown("#### ⚙️ Account Settings")
+                try:
+                    prof = api.get_profile()
+                    curr_inc = float(prof.get("monthly_income") or 50000.0)
+                    curr_sav = float(prof.get("savings_goal") or 10000.0)
+
+                    new_inc = st.number_input("Monthly Income (Rs.)", value=curr_inc, step=5000.0, key="pop_inc")
+                    new_sav = st.number_input("Savings Goal (Rs.)", value=curr_sav, step=1000.0, key="pop_sav")
+
+                    if st.button("Save Profile Settings", type="primary", use_container_width=True, key="pop_save_btn"):
+                        api.update_profile({"monthly_income": new_inc, "savings_goal": new_sav})
+                        st.success("Settings saved successfully!")
+
+                    st.markdown("---")
+                    st.markdown("##### 📦 Export Personal Data")
+                    if st.button("Download Data Package (JSON)", use_container_width=True, key="pop_export_btn"):
+                        data_pkg = api.export_data()
+                        st.download_button(
+                            label="⬇️ Save JSON File",
+                            data=json.dumps(data_pkg, indent=2),
+                            file_name=f"finance_data_{st.session_state.user_email}.json",
+                            mime="application/json",
+                            use_container_width=True
+                        )
+                except Exception as e:
+                    st.error(f"Settings error: {e}")
+
+            # 5. Logout
+            elif "5." in profile_tab_choice:
+                st.markdown("#### 🚪 End Session")
+                st.write("Ready to sign out of your account?")
+                if st.button("Log Out Now", type="primary", use_container_width=True, key="pop_logout_btn"):
+                    st.session_state.token = None
+                    st.session_state.user_email = None
+                    st.session_state.execution_id = None
+                    st.session_state.last_upload_res = None
+                    st.session_state.upload_history = []
+                    st.rerun()
+
+    # Sidebar Deep Dive Navigation
     st.sidebar.success(f"Signed in as:\n**{st.session_state.user_email}**")
     if st.sidebar.button("Log Out", use_container_width=True):
         st.session_state.token = None
         st.session_state.user_email = None
         st.session_state.execution_id = None
         st.session_state.last_upload_res = None
+        st.session_state.upload_history = []
         st.rerun()
 
     st.sidebar.markdown("---")
     st.sidebar.markdown("### 🧭 Deep Dive Pages")
-    st.sidebar.page_link("pages/1_Overview.py", label="Detailed Overview", icon="📊")
+    st.sidebar.page_link("pages/1_Overview.py", label="Financial Overview", icon="📊")
     st.sidebar.page_link("pages/2_Transactions.py", label="Transactions Ledger", icon="💳")
     st.sidebar.page_link("pages/3_Alerts.py", label="Anomaly Alerts", icon="🚨")
     st.sidebar.page_link("pages/4_Budget.py", label="Weekly Budgets", icon="🎯")
@@ -265,12 +410,14 @@ else:
     st.sidebar.page_link("pages/7_Settings.py", label="Settings & DPDP Privacy", icon="⚙️")
 
     # =========================================================================
-    # TOP NAVIGATION TABS: HOME, OVERVIEW, PROFILE & HISTORY
+    # TOP TABS: HOME & UPLOAD, OVERVIEW, TRANSACTIONS, ALERTS, WEEKLY ADVICE
     # =========================================================================
-    tab_home, tab_overview, tab_profile = st.tabs([
+    tab_home, tab_overview, tab_txns, tab_alerts, tab_advice = st.tabs([
         "🏠 Home & Upload",
         "📊 Overview",
-        "👤 Profile & History"
+        "💳 Transactions",
+        "🚨 Anomaly Alerts",
+        "💡 Weekly Advice"
     ])
 
     # -------------------------------------------------------------------------
@@ -418,89 +565,62 @@ else:
             st.error(f"Error loading overview: {e}")
 
     # -------------------------------------------------------------------------
-    # TAB 3: PROFILE & HISTORY
+    # TAB 3: TRANSACTIONS
     # -------------------------------------------------------------------------
-    with tab_profile:
-        st.subheader("👤 User Profile & Activity History")
-        st.caption("Manage your profile, income & savings targets, statement upload records, and audit history.")
-
-        col_prof_left, col_prof_right = st.columns([1, 1])
-
-        # Left Column: Profile Details & Target Settings
-        with col_prof_left:
-            st.markdown('<div class="profile-card">', unsafe_allow_html=True)
-            st.markdown("#### 📋 Account Information")
-            try:
-                prof = api.get_profile()
-                st.write(f"**Email:** `{prof.get('email', st.session_state.user_email)}`")
-                st.write(f"**Account Role:** `{prof.get('role', 'user')}`")
-                st.write(f"**Currency Symbol:** `{prof.get('currency_symbol', 'Rs.')}`")
-                st.write(f"**Age Gate:** Verified 18+")
-
-                st.markdown("---")
-                st.markdown("#### 🎯 Financial Targets")
-                curr_income = float(prof.get("monthly_income") or 50000.0)
-                curr_goal = float(prof.get("savings_goal") or 10000.0)
-
-                new_income = st.number_input("Monthly Income (Rs.)", value=curr_income, step=5000.0)
-                new_goal = st.number_input("Monthly Savings Goal (Rs.)", value=curr_goal, step=1000.0)
-
-                if st.button("💾 Save Profile Targets", type="primary", use_container_width=True):
-                    try:
-                        api.update_profile({
-                            "monthly_income": new_income,
-                            "savings_goal": new_goal,
-                            "currency_symbol": "Rs."
-                        })
-                        st.success("Financial goals updated successfully!")
-                    except Exception as e:
-                        st.error(f"Failed to update profile: {e}")
-            except Exception as e:
-                st.error(f"Unable to load profile: {e}")
-            st.markdown('</div>', unsafe_allow_html=True)
-
-            # Data Portability & Privacy Card
-            st.markdown('<div class="profile-card">', unsafe_allow_html=True)
-            st.markdown("#### 🔒 DPDP Data Portability")
-            st.write("Export your complete personal financial ledger in standardized JSON format.")
-            if st.button("📦 Export Full Personal Data (JSON)", use_container_width=True):
-                try:
-                    export_data = api.export_data()
-                    st.download_button(
-                        label="⬇️ Download Data Package (.json)",
-                        data=json.dumps(export_data, indent=2),
-                        file_name=f"finance_data_export_{st.session_state.user_email}.json",
-                        mime="application/json",
-                        use_container_width=True
-                    )
-                except Exception as e:
-                    st.error(f"Export failed: {e}")
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        # Right Column: History (Upload History & Audit Log)
-        with col_prof_right:
-            st.markdown('<div class="profile-card">', unsafe_allow_html=True)
-            st.markdown("#### 📥 Statement Ingestion History")
-            if st.session_state.upload_history:
-                hist_df = pd.DataFrame(st.session_state.upload_history)
-                st.dataframe(hist_df, use_container_width=True)
+    with tab_txns:
+        st.subheader("💳 Transactions Ledger")
+        st.caption("Search, filter, and inspect categorized bank statement records.")
+        try:
+            txns = api.get_transactions()
+            if txns:
+                t_df = pd.DataFrame(txns)
+                st.dataframe(t_df, use_container_width=True)
             else:
-                st.info("No files uploaded in this session yet.")
-            st.markdown('</div>', unsafe_allow_html=True)
+                st.info("No transactions found. Upload a statement on the Home tab.")
+        except Exception as e:
+            st.error(f"Error loading transactions: {e}")
 
-            st.markdown('<div class="profile-card">', unsafe_allow_html=True)
-            st.markdown("#### 📜 Audit & Activity Log")
-            try:
-                activity_logs = api.get_activity_history()
-                if activity_logs:
-                    act_df = pd.DataFrame(activity_logs)
-                    act_df = act_df[["timestamp", "action", "resource"]]
-                    st.dataframe(act_df, use_container_width=True)
-                else:
-                    st.info("No audit logs recorded.")
-            except Exception:
-                # Fallback to display current session info
-                st.write(f"- **Current Session:** Active")
-                st.write(f"- **Signed In As:** `{st.session_state.user_email}`")
-                st.write(f"- **Encryption:** AES-256 enabled at rest")
-            st.markdown('</div>', unsafe_allow_html=True)
+    # -------------------------------------------------------------------------
+    # TAB 4: ANOMALY ALERTS
+    # -------------------------------------------------------------------------
+    with tab_alerts:
+        st.subheader("🚨 Anomaly Alerts")
+        st.caption("Explainable spending anomalies detected by statistical Z-Score and IQR models.")
+        try:
+            alerts = api.get_alerts()
+            if alerts:
+                for a in alerts:
+                    sev = a.get("severity", "medium")
+                    card_color = "#451A1A" if sev == "high" else "#3B2E1E"
+                    border_color = "#EF4444" if sev == "high" else "#F59E0B"
+                    st.markdown(f"""
+                    <div style="background-color: {card_color}; border-left: 4px solid {border_color}; padding: 14px; border-radius: 8px; margin-bottom: 12px;">
+                        <strong>{a.get('alert_type', 'Anomaly').title()} Alert ({sev.upper()})</strong><br>
+                        <span style="color: #CBD5E1;">{a.get('plain_language_reason', 'Unusual spending detected.')}</span><br>
+                        <small style="color: #94A3B8;">Status: {a.get('user_feedback', 'pending')}</small>
+                    </div>
+                    """, unsafe_allow_html=True)
+            else:
+                st.success("🎉 No spending anomalies detected!")
+        except Exception as e:
+            st.error(f"Error loading alerts: {e}")
+
+    # -------------------------------------------------------------------------
+    # TAB 5: WEEKLY ADVICE
+    # -------------------------------------------------------------------------
+    with tab_advice:
+        st.subheader("💡 Weekly AI Recommendations")
+        st.caption("Deterministic mathematical savings advice translated by AI into plain English.")
+        try:
+            advice = api.get_weekly_advice()
+            if advice and advice.get("explanation"):
+                st.info(advice["explanation"])
+                recs = advice.get("recommendations", [])
+                if recs:
+                    st.markdown("#### Actionable Steps:")
+                    for r in recs:
+                        st.write(f"- **{r.get('category', '').title()}**: {r.get('action', '')} (Potential Savings: Rs. {r.get('estimated_savings_inr', 0):,.2f})")
+            else:
+                st.info("Weekly advice will generate once statement transactions are imported.")
+        except Exception:
+            st.info("Upload a statement to generate personalized weekly savings advice.")
