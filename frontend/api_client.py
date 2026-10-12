@@ -34,6 +34,16 @@ class FinanceAPIClient:
         resp.raise_for_status()
         return resp.json()
 
+    def login_with_google(self, email: Optional[str] = None, id_token: Optional[str] = None) -> Dict[str, Any]:
+        payload = {}
+        if email:
+            payload["email"] = email
+        if id_token:
+            payload["id_token"] = id_token
+        resp = httpx.post(f"{self.base_url}/auth/google", json=payload, timeout=10.0)
+        resp.raise_for_status()
+        return resp.json()
+
     def get_profile(self) -> Dict[str, Any]:
         resp = httpx.get(f"{self.base_url}/auth/me", headers=self._headers(), timeout=10.0)
         resp.raise_for_status()

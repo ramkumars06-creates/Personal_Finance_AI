@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     NO_LLM_FALLBACK: bool = False
     DAILY_LLM_QUOTA_PER_USER: int = 50
     
+    # Google OAuth Settings
+    GOOGLE_CLIENT_ID: Optional[str] = None
+    GOOGLE_CLIENT_SECRET: Optional[str] = None
+    
     # Rate Limiting & File Upload Limits
     RATE_LIMIT_PER_MINUTE: int = 60
     MAX_UPLOAD_SIZE_MB: int = 5
