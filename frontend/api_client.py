@@ -141,6 +141,11 @@ class FinanceAPIClient:
         resp.raise_for_status()
         return resp.json()
 
+    def get_activity_history(self) -> List[Dict[str, Any]]:
+        resp = httpx.get(f"{self.base_url}/privacy/activity-history", headers=self._headers(), timeout=10.0)
+        resp.raise_for_status()
+        return resp.json()
+
     # Demo Mode
     def seed_demo(self) -> Dict[str, Any]:
         resp = httpx.post(f"{self.base_url}/demo/seed", timeout=15.0)

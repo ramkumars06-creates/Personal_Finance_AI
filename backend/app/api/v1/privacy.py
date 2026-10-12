@@ -127,6 +127,20 @@ def export_user_data(current_user: User = Depends(get_current_user), db: Session
     return export_payload
 
 
+@router.get("/activity-history")
+def get_activity_history(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Fetch user audit log history (logins, uploads, updates)."""
+    logs = db.query(AuditLog).filter(AuditLog.user_id == current_user.id).order_by(AuditLog.timestamp.desc()).limit(50).all()
+    return [
+        {
+            "id": l.id,
+            "action": l.action,
+            "resource": l.resource,
+            "timestamp": l.timestamp.isoformat()
+        } for l in logs
+    ]
+
+
 @router.delete("/account", status_code=status.HTTP_200_OK)
 def delete_account(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """
