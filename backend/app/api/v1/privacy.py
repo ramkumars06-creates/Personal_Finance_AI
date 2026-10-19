@@ -133,11 +133,11 @@ def get_activity_history(current_user: User = Depends(get_current_user), db: Ses
     logs = db.query(AuditLog).filter(AuditLog.user_id == current_user.id).order_by(AuditLog.timestamp.desc()).limit(50).all()
     return [
         {
-            "id": l.id,
-            "action": l.action,
-            "resource": l.resource,
-            "timestamp": l.timestamp.isoformat()
-        } for l in logs
+            "id": log_entry.id,
+            "action": log_entry.action,
+            "resource": log_entry.resource,
+            "timestamp": log_entry.timestamp.isoformat()
+        } for log_entry in logs
     ]
 
 

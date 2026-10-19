@@ -287,7 +287,7 @@ else:
         # Top-Right Static Profile Popover
         display_name = st.session_state.user_email.split('@')[0] if st.session_state.user_email else "User"
         with st.popover(f"👤 {display_name} ▾", use_container_width=True):
-            st.markdown(f"### 👤 Profile & Account")
+            st.markdown("### 👤 Profile & Account")
             st.caption(f"Signed in as **{st.session_state.user_email}**")
             st.markdown("---")
 
@@ -317,9 +317,9 @@ else:
                     else:
                         st.info("No activity records found yet.")
                 except Exception:
-                    st.write(f"- **Current Session:** Active")
+                    st.write("- **Current Session:** Active")
                     st.write(f"- **Identity:** `{st.session_state.user_email}`")
-                    st.write(f"- **Security:** AES-256 field encryption active")
+                    st.write("- **Security:** AES-256 field encryption active")
 
             # 2. Current Budget and Spending
             elif "2." in profile_tab_choice:
