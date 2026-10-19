@@ -11,7 +11,15 @@ class FinanceAPIClient:
     """HTTP Client wrapper for Personal Finance Agent Backend API."""
 
     def __init__(self, base_url: Optional[str] = None):
-        raw_url = (base_url or os.getenv("BACKEND_API_URL", "http://127.0.0.1:8000/api/v1")).strip()
+        backend_env = os.getenv("BACKEND_API_URL")
+        if not backend_env:
+            try:
+                import streamlit as st
+                if "BACKEND_API_URL" in st.secrets:
+                    backend_env = str(st.secrets["BACKEND_API_URL"])
+            except Exception:
+                pass
+        raw_url = (base_url or backend_env or "http://127.0.0.1:8000/api/v1").strip()
         if not raw_url.startswith(("http://", "https://")):
             if "localhost" in raw_url or "127.0.0.1" in raw_url:
                 raw_url = f"http://{raw_url}"
