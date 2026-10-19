@@ -19,7 +19,7 @@ netstat -ano | findstr ":8000" | findstr "LISTENING" >nul
 if %ERRORLEVEL% neq 0 (
     echo [INFO] Starting Backend Server...
     start "Finance Backend" /min cmd /c "venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --app-dir backend"
-    timeout /t 2 /nobreak >nul
+    timeout /t 3 /nobreak >nul
 )
 
 :: Start Frontend if not already active

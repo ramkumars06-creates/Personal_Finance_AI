@@ -178,11 +178,21 @@ if not st.session_state.token:
                 })
                 st.success("Demo loaded! Explore your personal finance assistant.")
                 st.rerun()
+            except ConnectionError as e:
+                st.error(f"🚨 {e}")
             except Exception as e:
                 st.error(f"Error loading demo: {e}")
 
     with col2:
         st.write("### Access Account")
+        if not api.check_health():
+            st.warning(
+                f"⚠️ **Backend API Offline**\n\n"
+                f"Cannot connect to the backend service at `{api.base_url}`.\n\n"
+                "**How to start the backend:**\n"
+                "- Run `launch.bat` in the project root\n"
+                "- Or run in terminal: `uvicorn app.main:app --port 8000 --app-dir backend`"
+            )
 
         # Google Sign-In Option
         st.markdown("""
@@ -224,6 +234,8 @@ if not st.session_state.token:
                         st.session_state.user_email = res["email"]
                         st.success(f"Authenticated with Google as {res['email']}!")
                         st.rerun()
+                    except ConnectionError as e:
+                        st.error(f"🚨 {e}")
                     except Exception as e:
                         st.error(f"Google authentication failed: {e}")
 
@@ -241,8 +253,10 @@ if not st.session_state.token:
                     st.session_state.user_email = res["email"]
                     st.success("Logged in successfully!")
                     st.rerun()
+                except ConnectionError as e:
+                    st.error(f"🚨 {e}")
                 except Exception as e:
-                    st.error("Login failed. Check your email or password.")
+                    st.error(f"Login failed: {e}")
 
         with tab_signup:
             st.write("### Create Public Account")
@@ -268,6 +282,8 @@ if not st.session_state.token:
                         st.session_state.user_email = res["email"]
                         st.success("Account created successfully!")
                         st.rerun()
+                    except ConnectionError as e:
+                        st.error(f"🚨 {e}")
                     except Exception as e:
                         st.error(f"Signup failed: {e}")
 else:

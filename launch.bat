@@ -22,7 +22,7 @@ if %ERRORLEVEL% equ 0 (
 ) else (
     echo [INFO] Starting Backend Server (FastAPI on port 8000)...
     start "Finance Backend" /min cmd /c "venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --app-dir backend"
-    timeout /t 2 /nobreak >nul
+    timeout /t 3 /nobreak >nul
 )
 
 :: Check if frontend is already running on port 8501
