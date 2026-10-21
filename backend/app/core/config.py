@@ -25,7 +25,15 @@ class Settings(BaseSettings):
     # Must be 32 url-safe base64-encoded bytes
     ENCRYPTION_KEY: str = "u6N_4kL-p1B9y8W2z3X4v5G6h7J8k9L0m1N2o3P4q5R="
     
-    # LLM Settings
+    # LLM Settings & Multi-Model Providers (Nemotron & Gemini)
+    LLM_PROVIDER: str = "nemotron"  # "nemotron", "gemini", or "fallback"
+    
+    # NVIDIA Nemotron AI Model Settings
+    NVIDIA_API_KEY: Optional[str] = None
+    NVIDIA_BASE_URL: str = "https://integrate.api.nvidia.com/v1"
+    NEMOTRON_MODEL: str = "nvidia/llama-3.1-nemotron-70b-instruct"
+
+    # Google Gemini Settings (Alternative)
     GEMINI_API_KEY: Optional[str] = None
     GEMINI_MODEL: str = "gemini-1.5-flash"
     NO_LLM_FALLBACK: bool = False

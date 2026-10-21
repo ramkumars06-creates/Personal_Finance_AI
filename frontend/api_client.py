@@ -59,7 +59,7 @@ class FinanceAPIClient:
         except (httpx.ConnectError, httpx.ConnectTimeout) as e:
             raise ConnectionError(
                 f"Cannot connect to Backend API server at '{self.base_url}'. "
-                "Please verify that the FastAPI backend is running."
+                "Please verify that the FastAPI backend is running (run 'launch.bat' or click 'Start Backend Server')."
             ) from e
         except httpx.HTTPStatusError as e:
             msg = str(e)

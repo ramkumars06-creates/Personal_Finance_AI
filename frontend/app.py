@@ -132,9 +132,102 @@ if "last_upload_res" not in st.session_state:
 if "upload_history" not in st.session_state:
     st.session_state.upload_history = []
 
+@st.cache_resource
+def ensure_embedded_backend() -> bool:
+    """
+    Ensures FastAPI backend runs in a background thread if deployed on an all-in-one platform
+    (like Streamlit Community Cloud) without an external backend.
+    """
+    import sys, time, threading
+    from pathlib import Path
+    import httpx
+
+    # Quick check if already active on port 8000
+    try:
+        r = httpx.get("http://127.0.0.1:8000/health", timeout=1.0)
+        if r.status_code == 200:
+            return True
+    except Exception:
+        pass
+
+    # Ensure backend package path is loaded
+    proj_root = Path(__file__).resolve().parent.parent
+    backend_dir = proj_root / "backend"
+    if str(backend_dir) not in sys.path:
+        sys.path.insert(0, str(backend_dir))
+
+    try:
+        import uvicorn
+        from app.main import app as fastapi_app
+
+        def _run_uvicorn():
+            uvicorn.run(fastapi_app, host="127.0.0.1", port=8000, log_level="warning")
+
+        thread = threading.Thread(target=_run_uvicorn, daemon=True, name="FastAPIServerThread")
+        thread.start()
+
+        # Wait up to 10 seconds for service to answer /health probe
+        for _ in range(20):
+            time.sleep(0.5)
+            try:
+                r = httpx.get("http://127.0.0.1:8000/health", timeout=1.0)
+                if r.status_code == 200:
+                    return True
+            except Exception:
+                pass
+        return True
+    except Exception as e:
+        print(f"[WARN] Could not auto-start embedded FastAPI: {e}")
+        return False
+
+
 api = FinanceAPIClient()
+if "127.0.0.1" in api.base_url or "localhost" in api.base_url:
+    ensure_embedded_backend()
+
 if st.session_state.token:
     api.set_token(st.session_state.token)
+
+def render_backend_offline_card(api_instance: FinanceAPIClient, key_suffix: str = ""):
+    """Renders an interactive card allowing automatic or manual backend startup."""
+    st.warning(
+        f"⚠️ **Backend API Server Offline**\n\n"
+        f"Cannot connect to the FastAPI backend service at `{api_instance.base_url}`.\n\n"
+        "The backend must be running to authenticate, seed demo data, and process statements."
+    )
+    col_start, col_help = st.columns([1, 1])
+    with col_start:
+        if st.button("⚡ Start Backend Server Automatically", type="primary", key=f"btn_start_backend_{key_suffix}", use_container_width=True):
+            with st.spinner("Starting FastAPI backend server in background..."):
+                import subprocess, sys, time
+                from pathlib import Path
+                proj_root = Path(__file__).resolve().parent.parent
+                venv_py = proj_root / "venv" / "Scripts" / "python.exe"
+                py_exec = str(venv_py) if venv_py.exists() else sys.executable
+                subprocess.Popen(
+                    [py_exec, "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8000", "--app-dir", "backend"],
+                    cwd=str(proj_root),
+                    creationflags=subprocess.CREATE_NEW_CONSOLE if hasattr(subprocess, "CREATE_NEW_CONSOLE") else 0
+                )
+                started = False
+                for _ in range(15):
+                    time.sleep(1)
+                    if api_instance.check_health():
+                        started = True
+                        break
+                if started:
+                    st.success("✅ Backend server is now online!")
+                    st.rerun()
+                else:
+                    st.error("Backend started, but is still initializing. Please click below to refresh.")
+    with col_help:
+        st.markdown(
+            "**Manual Start Options:**\n"
+            "- Double-click `launch.bat` in the project root\n"
+            "- Or run in PowerShell:\n"
+            "  `.\\venv\\Scripts\\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --app-dir backend`"
+        )
+
 
 # Sidebar & Global Branding
 st.sidebar.title("💰 Finance Agent")
@@ -186,13 +279,8 @@ if not st.session_state.token:
     with col2:
         st.write("### Access Account")
         if not api.check_health():
-            st.warning(
-                f"⚠️ **Backend API Offline**\n\n"
-                f"Cannot connect to the backend service at `{api.base_url}`.\n\n"
-                "**How to start the backend:**\n"
-                "- Run `launch.bat` in the project root\n"
-                "- Or run in terminal: `uvicorn app.main:app --port 8000 --app-dir backend`"
-            )
+            render_backend_offline_card(api, "landing")
+
 
         # Google Sign-In Option
         st.markdown("""
@@ -297,6 +385,9 @@ else:
     with col_hdr_left:
         st.title("💰 Personal Finance Agent")
         st.caption("Agentic AI Budget & Spending Assistant")
+
+    if not api.check_health():
+        render_backend_offline_card(api, "auth")
 
     with col_hdr_right:
         st.write("")  # Vertical alignment padding

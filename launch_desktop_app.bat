@@ -19,16 +19,31 @@ netstat -ano | findstr ":8000" | findstr "LISTENING" >nul
 if %ERRORLEVEL% neq 0 (
     echo [INFO] Starting Backend Server...
     start "Finance Backend" /min cmd /c "venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --app-dir backend"
-    timeout /t 3 /nobreak >nul
+    echo [INFO] Waiting for Backend Server to initialize...
+    for /L %%i in (1,1,25) do (
+        timeout /t 1 /nobreak >nul
+        netstat -ano | findstr ":8000" | findstr "LISTENING" >nul
+        if not errorlevel 1 goto :backend_ready
+    )
 )
+:backend_ready
+echo [INFO] Backend is ready!
 
 :: Start Frontend if not already active
 netstat -ano | findstr ":8501" | findstr "LISTENING" >nul
 if %ERRORLEVEL% neq 0 (
     echo [INFO] Starting Frontend Server...
     start "Finance Frontend" /min cmd /c "venv\Scripts\python.exe -m streamlit run frontend\app.py --server.port 8501 --server.headless true"
-    timeout /t 3 /nobreak >nul
+    echo [INFO] Waiting for Frontend UI to initialize...
+    for /L %%i in (1,1,20) do (
+        timeout /t 1 /nobreak >nul
+        netstat -ano | findstr ":8501" | findstr "LISTENING" >nul
+        if not errorlevel 1 goto :frontend_ready
+    )
 )
+:frontend_ready
+echo [INFO] Frontend is ready!
+
 
 :: Open in Standalone App Window Mode (using Edge or Chrome)
 if exist "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" (

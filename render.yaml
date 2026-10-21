@@ -20,6 +20,12 @@ services:
         value: u6N_4kL-p1B9y8W2z3X4v5G6h7J8k9L0m1N2o3P4q5R=
       - key: DATABASE_URL
         value: sqlite:///./personal_finance.db
+      - key: LLM_PROVIDER
+        value: nemotron
+      - key: NEMOTRON_MODEL
+        value: nvidia/llama-3.1-nemotron-70b-instruct
+      - key: NVIDIA_API_KEY
+        sync: false
 
   # 2. Streamlit Frontend UI
   - type: web

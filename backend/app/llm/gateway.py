@@ -6,6 +6,7 @@ import re
 import json
 import logging
 from typing import Dict, Any, Optional
+import httpx
 from app.core.config import settings
 from app.llm.prompt_templates import (
     CATEGORIZATION_SYSTEM_PROMPT, CATEGORIZATION_USER_PROMPT,
@@ -37,54 +38,110 @@ def sanitize_untrusted_text(text: str) -> str:
 
 
 class LLMGateway:
-    """Gateway for AI inference with fail-safe fallback engine."""
+    """Gateway for AI inference supporting NVIDIA Nemotron and Google Gemini with fail-safe fallback."""
 
     def __init__(self):
-        self.api_key = settings.GEMINI_API_KEY
-        self.model_name = settings.GEMINI_MODEL
-        self.force_fallback = settings.NO_LLM_FALLBACK or not self.api_key or not HAS_GENAI
-        
-        if HAS_GENAI and self.api_key:
+        self.provider = (settings.LLM_PROVIDER or "nemotron").lower()
+        self.nvidia_api_key = settings.NVIDIA_API_KEY
+        self.nvidia_base_url = settings.NVIDIA_BASE_URL
+        self.nemotron_model = settings.NEMOTRON_MODEL
+
+        self.gemini_api_key = settings.GEMINI_API_KEY
+        self.gemini_model = settings.GEMINI_MODEL
+
+        # Determine active provider
+        if settings.NO_LLM_FALLBACK:
+            self.active_provider = "fallback"
+        elif self.provider == "nemotron" and self.nvidia_api_key:
+            self.active_provider = "nemotron"
+        elif self.provider == "gemini" and self.gemini_api_key and HAS_GENAI:
+            self.active_provider = "gemini"
             try:
-                genai.configure(api_key=self.api_key)
+                genai.configure(api_key=self.gemini_api_key)
             except Exception as e:
                 logger.warning(f"Failed to configure Google GenAI client: {e}")
-                self.force_fallback = True
+                self.active_provider = "fallback"
+        elif self.nvidia_api_key:
+            self.active_provider = "nemotron"
+        elif self.gemini_api_key and HAS_GENAI:
+            self.active_provider = "gemini"
+            try:
+                genai.configure(api_key=self.gemini_api_key)
+            except Exception:
+                self.active_provider = "fallback"
+        else:
+            self.active_provider = "fallback"
+
+    @property
+    def force_fallback(self) -> bool:
+        return self.active_provider == "fallback"
+
+    def _call_nemotron(self, system_prompt: str, user_prompt: str) -> Dict[str, Any]:
+        """Calls NVIDIA Nemotron endpoint (NVIDIA NIM or OpenAI-compatible catalog)."""
+        url = f"{self.nvidia_base_url.rstrip('/')}/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {self.nvidia_api_key}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": self.nemotron_model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            "temperature": 0.2,
+            "top_p": 0.7,
+            "max_tokens": 1024
+        }
+        resp = httpx.post(url, headers=headers, json=payload, timeout=30.0)
+        resp.raise_for_status()
+        data = resp.json()
+        content = data["choices"][0]["message"]["content"].strip()
+
+        # Clean markdown code blocks if the model wrapped the JSON
+        if content.startswith("```"):
+            content = re.sub(r'^```(?:json)?\s*', '', content, flags=re.MULTILINE)
+            content = re.sub(r'```$', '', content.strip(), flags=re.MULTILINE)
+
+        return json.loads(content)
 
     def categorize_merchant(self, raw_merchant: str) -> Dict[str, Any]:
         """
-        Categorize a merchant string via LLM, falling back to rule engine if LLM fails or is disabled.
+        Categorize a merchant string via LLM (Nemotron / Gemini), falling back to rule engine.
         """
         sanitized_merchant = sanitize_untrusted_text(raw_merchant)
-        
-        if self.force_fallback:
+
+        if self.active_provider == "fallback":
             return self._fallback_categorize(sanitized_merchant)
 
         try:
-            model = genai.GenerativeModel(self.model_name)
-            user_prompt = CATEGORIZATION_USER_PROMPT.format(merchant_name=sanitized_merchant)
-            full_prompt = f"{CATEGORIZATION_SYSTEM_PROMPT}\n\n{user_prompt}"
+            if self.active_provider == "nemotron":
+                user_prompt = CATEGORIZATION_USER_PROMPT.format(merchant_name=sanitized_merchant)
+                parsed = self._call_nemotron(CATEGORIZATION_SYSTEM_PROMPT, user_prompt)
+            else:
+                model = genai.GenerativeModel(self.gemini_model)
+                user_prompt = CATEGORIZATION_USER_PROMPT.format(merchant_name=sanitized_merchant)
+                full_prompt = f"{CATEGORIZATION_SYSTEM_PROMPT}\n\n{user_prompt}"
+                response = model.generate_content(
+                    full_prompt,
+                    generation_config={"response_mime_type": "application/json"}
+                )
+                parsed = json.loads(response.text)
 
-            response = model.generate_content(
-                full_prompt,
-                generation_config={"response_mime_type": "application/json"}
-            )
-            
-            parsed = json.loads(response.text)
             category = parsed.get("category", "").lower()
             valid_cats = ["food", "groceries", "transport", "bills", "rent", "shopping", "entertainment", "health", "education", "other"]
-            
+
             if category not in valid_cats:
                 category = "other"
 
             return {
                 "category": category,
                 "confidence": float(parsed.get("confidence", 0.7)),
-                "reason": parsed.get("reason", "AI categorized merchant."),
-                "method": "llm"
+                "reason": parsed.get("reason", f"Categorized by {self.active_provider.title()} AI."),
+                "method": f"llm_{self.active_provider}"
             }
         except Exception as e:
-            logger.warning(f"LLM Categorization failed for '{sanitized_merchant}': {e}. Using fallback.")
+            logger.warning(f"AI Categorization failed ({self.active_provider}) for '{sanitized_merchant}': {e}. Using fallback.")
             return self._fallback_categorize(sanitized_merchant)
 
     def generate_weekly_explanation(
@@ -98,13 +155,12 @@ class LLMGateway:
         """
         Generate plain-language weekly explanation. Validates that no invented numbers appear.
         """
-        if self.force_fallback:
+        if self.active_provider == "fallback":
             return self._fallback_weekly_explanation(
                 total_spend, top_category, top_category_spend, overbudget_summary, recommendations_text
             )
 
         try:
-            model = genai.GenerativeModel(self.model_name)
             user_prompt = WEEKLY_EXPLANATION_USER_PROMPT.format(
                 total_spend=total_spend,
                 top_category=top_category,
@@ -112,14 +168,18 @@ class LLMGateway:
                 overbudget_summary=overbudget_summary,
                 recommendations_text=recommendations_text
             )
-            full_prompt = f"{WEEKLY_EXPLANATION_SYSTEM_PROMPT}\n\n{user_prompt}"
 
-            response = model.generate_content(
-                full_prompt,
-                generation_config={"response_mime_type": "application/json"}
-            )
-            
-            parsed = json.loads(response.text)
+            if self.active_provider == "nemotron":
+                parsed = self._call_nemotron(WEEKLY_EXPLANATION_SYSTEM_PROMPT, user_prompt)
+            else:
+                model = genai.GenerativeModel(self.gemini_model)
+                full_prompt = f"{WEEKLY_EXPLANATION_SYSTEM_PROMPT}\n\n{user_prompt}"
+                response = model.generate_content(
+                    full_prompt,
+                    generation_config={"response_mime_type": "application/json"}
+                )
+                parsed = json.loads(response.text)
+
             explanation = parsed.get("explanation", "")
             key_takeaway = parsed.get("key_takeaway", "")
 
@@ -132,10 +192,10 @@ class LLMGateway:
                 "explanation": explanation,
                 "key_takeaway": key_takeaway,
                 "disclaimer": disclaimer,
-                "method": "llm"
+                "method": f"llm_{self.active_provider}"
             }
         except Exception as e:
-            logger.warning(f"LLM Weekly Summary generation failed: {e}. Using template fallback.")
+            logger.warning(f"AI Weekly Summary failed ({self.active_provider}): {e}. Using template fallback.")
             return self._fallback_weekly_explanation(
                 total_spend, top_category, top_category_spend, overbudget_summary, recommendations_text
             )
